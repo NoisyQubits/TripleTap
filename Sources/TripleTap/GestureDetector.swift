@@ -3,6 +3,7 @@ import Foundation
 enum GestureState: Equatable {
     case idle
     case threeFingerDown(start: ContinuousClock.Instant)
+    case releasing(start: ContinuousClock.Instant)
     case rejected
 }
 
@@ -24,6 +25,7 @@ enum GestureRejection: Equatable, CustomStringConvertible {
 
 enum GestureOutcome: Equatable {
     case enteredThreeFingerDown
+    case enteredRelease
     case accepted(Duration)
     case rejected(GestureRejection, Duration?)
 
@@ -81,7 +83,29 @@ struct ThreeFingerClickDetector {
                 }
                 lastRecognition = now
                 return .accepted(duration)
-            } else if activeTouchCount != 3 {
+            } else if activeTouchCount < 3 {
+                // Hardware reports individual fingers lifting on successive
+                // frames, so a valid click commonly transitions 3 → 2 → 1 → 0.
+                state = .releasing(start: start)
+                return .enteredRelease
+            }
+
+        case let .releasing(start):
+            if rawTouchCount > 3 {
+                state = .rejected
+                return .rejected(.tooManyFingers, now - start)
+            } else if activeTouchCount == 0 {
+                let duration = now - start
+                state = .idle
+                guard duration <= configuration.maximumPressDuration else {
+                    return .rejected(.heldTooLong, duration)
+                }
+                guard lastRecognition.map({ now - $0 >= configuration.cooldown }) ?? true else {
+                    return .rejected(.cooldown, duration)
+                }
+                lastRecognition = now
+                return .accepted(duration)
+            } else if activeTouchCount == 3 {
                 state = .rejected
                 return .rejected(.fingerCountChanged, now - start)
             }

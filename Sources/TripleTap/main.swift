@@ -154,6 +154,8 @@ func printGestureOutcome(_ outcome: GestureOutcome) {
     switch outcome {
     case .enteredThreeFingerDown:
         print("gesture: entered ThreeFingerDown")
+    case .enteredRelease:
+        print("gesture: entered release")
     case let .accepted(duration):
         print("gesture: accepted click (duration=\(duration))")
     case let .rejected(reason, duration):

@@ -20,6 +20,21 @@ func wasAccepted(_ outcome: GestureOutcome?) -> Bool {
     #expect(!wasAccepted(repeated))
 }
 
+@Test func recognizesStaggeredFingerRelease() {
+    let clock = ContinuousClock()
+    let start = clock.now
+    var detector = ThreeFingerClickDetector()
+
+    _ = detector.process(activeTouchCount: 3, rawTouchCount: 3, now: start)
+    let releaseStarted = detector.process(activeTouchCount: 2, rawTouchCount: 3, now: start.advanced(by: .milliseconds(40)))
+    let stillReleasing = detector.process(activeTouchCount: 1, rawTouchCount: 2, now: start.advanced(by: .milliseconds(70)))
+    let recognized = detector.process(activeTouchCount: 0, rawTouchCount: 0, now: start.advanced(by: .milliseconds(100)))
+
+    #expect(releaseStarted == .enteredRelease)
+    #expect(stillReleasing == nil)
+    #expect(wasAccepted(recognized))
+}
+
 @Test func rejectsLongPressAndTooManyFingers() {
     let clock = ContinuousClock()
     let start = clock.now
