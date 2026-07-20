@@ -66,24 +66,46 @@ struct MultitouchAPI {
     }
 }
 
-/// Reverse-engineered `MTContact` layout used by MultitouchSupport on arm64.
-/// Keep this private-framework type isolated so its layout can be updated
-/// independently if a later macOS release changes it.
-struct MTContact {
+struct MTPoint {
+    let x: Float
+    let y: Float
+}
+
+struct MTReadout {
+    let position: MTPoint
+    let velocity: MTPoint
+}
+
+/// The known 96-byte contact record layout. The four Int32 values between the
+/// timestamp and normalized readout are essential: omitting two of the unknown
+/// fields makes the second record be decoded at the wrong byte offset.
+struct MTTouch {
     let frame: Int32
     let timestamp: Double
     let identifier: Int32
     let state: Int32
-    let fingerID: Int32
-    let x: Float
-    let y: Float
-    let z: Float
+    let unknown1: Int32
+    let unknown2: Int32
+    let normalized: MTReadout
+    let size: Float
+    let unknown3: Int32
+    let angle: Float
     let majorAxis: Float
     let minorAxis: Float
-    let angle: Float
-    let size: Float
-    let xVelocity: Float
-    let yVelocity: Float
+    let millimeters: MTReadout
+    let unknown4: Int32
+    let unknown5: Int32
+    let unknown6: Float
+}
+
+let rawDiagnosticsEnabled = CommandLine.arguments.contains("--raw")
+
+func hexBytes(from pointer: UnsafeRawPointer, count: Int) -> String {
+    let bytes = UnsafeRawBufferPointer(start: pointer, count: count)
+    return bytes.enumerated().map { index, byte in
+        let separator = index > 0 && index % 16 == 0 ? "\n" : (index > 0 ? " " : "")
+        return separator + String(format: "%02X", byte)
+    }.joined()
 }
 
 func contactFrameCallback(
@@ -101,13 +123,20 @@ func contactFrameCallback(
         return 0
     }
 
-    let contactsPointer = contacts.assumingMemoryBound(to: MTContact.self)
+    let contactsPointer = contacts.assumingMemoryBound(to: MTTouch.self)
     for index in 0..<Int(fingerCount) {
         let contact = contactsPointer[index]
         print("\nFinger \(index)")
-        print("x: \(contact.x)")
-        print("y: \(contact.y)")
+        print("identifier: \(contact.identifier)")
+        print("x: \(contact.normalized.position.x)")
+        print("y: \(contact.normalized.position.y)")
         print("state: \(contact.state)")
+        print("size: \(contact.size)")
+        if rawDiagnosticsEnabled {
+            let record = UnsafeRawPointer(contactsPointer.advanced(by: index))
+            print("Raw MTTouch (\(MemoryLayout<MTTouch>.stride) bytes)")
+            print(hexBytes(from: record, count: MemoryLayout<MTTouch>.stride))
+        }
     }
     print("")
     return 0
@@ -143,6 +172,15 @@ guard let multitouch = MultitouchAPI(handle: framework) else {
     exit(EXIT_FAILURE)
 }
 print("Required MultitouchSupport symbols: available")
+
+if arguments.contains("--layout") {
+    print("MTTouch size: \(MemoryLayout<MTTouch>.size) bytes")
+    print("MTTouch stride: \(MemoryLayout<MTTouch>.stride) bytes")
+    print("MTTouch alignment: \(MemoryLayout<MTTouch>.alignment) bytes")
+    print("Pointer width: \(MemoryLayout<UnsafeRawPointer>.size) bytes")
+    print("Offsets: frame=\(MemoryLayout<MTTouch>.offset(of: \MTTouch.frame)!), timestamp=\(MemoryLayout<MTTouch>.offset(of: \MTTouch.timestamp)!), identifier=\(MemoryLayout<MTTouch>.offset(of: \MTTouch.identifier)!), state=\(MemoryLayout<MTTouch>.offset(of: \MTTouch.state)!), normalized=\(MemoryLayout<MTTouch>.offset(of: \MTTouch.normalized)!), size=\(MemoryLayout<MTTouch>.offset(of: \MTTouch.size)!)")
+    exit(EXIT_SUCCESS)
+}
 
 if arguments.contains("--symbols") {
     print("\nExported global symbols:")

@@ -12,6 +12,8 @@ Build and run the loader:
 swift run tripletap
 swift run tripletap --symbols
 swift run tripletap --frames
+swift run tripletap --frames --raw
+swift run tripletap --layout
 ```
 
 `--symbols` asks the system `nm` tool to show exported text symbols when the
@@ -26,3 +28,12 @@ to command-line file tools, in which case the command reports that limitation.
 
 `--frames` starts each discovered trackpad and prints its raw contacts until the
 process is stopped with Control-C. This is the first end-to-end hardware check.
+Add `--raw` to print the 96-byte raw record beside its decoded fields. `--layout`
+prints the decoder's Swift size, stride, and alignment without starting capture.
+
+## MTTouch layout
+
+Tahoe's decoder uses the independently documented historical 96-byte layout:
+an `Int32` frame, an aligned `Double` timestamp, four `Int32` identity/state
+fields, normalized position and velocity, then size and ellipse data. The raw
+mode is the authority for validating this assumption on a given macOS build.
