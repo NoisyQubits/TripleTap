@@ -8,6 +8,7 @@ let package = Package(
         .executable(name: "tripletap", targets: ["TripleTap"])
     ],
     targets: [
-        .executableTarget(name: "TripleTap")
+        .executableTarget(name: "TripleTap"),
+        .testTarget(name: "TripleTapTests", dependencies: ["TripleTap"])
     ]
 )

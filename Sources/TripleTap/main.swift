@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import AppKit
 
 enum MultitouchSupport {
     static let frameworkPath = "/System/Library/PrivateFrameworks/MultitouchSupport.framework/Versions/A/MultitouchSupport"
@@ -98,7 +99,51 @@ struct MTTouch {
     let unknown6: Float
 }
 
+let frameDiagnosticsEnabled = CommandLine.arguments.contains("--frames")
 let rawDiagnosticsEnabled = CommandLine.arguments.contains("--raw")
+
+enum MTTouchState: Int32 {
+    case makeTouch = 3
+    case touching = 4
+}
+
+final class GestureRuntime: @unchecked Sendable {
+    private let lock = NSLock()
+    private var detector = ThreeFingerClickDetector()
+
+    func process(activeTouchCount: Int, rawTouchCount: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return detector.process(
+            activeTouchCount: activeTouchCount,
+            rawTouchCount: rawTouchCount,
+            now: ContinuousClock().now
+        )
+    }
+}
+
+let gestureRuntime = GestureRuntime()
+
+func emitPlayPause() {
+    // IOKit's ev_keymap.h defines NX_KEYTYPE_PLAY as 16. The system-defined
+    // event payload is the same down/up encoding produced by the media key.
+    let keyType = 16
+    for flags in [0xA, 0xB] { // NX_KEYDOWN, NX_KEYUP
+        let data1 = (keyType << 16) | (flags << 8)
+        guard let event = NSEvent.otherEvent(
+            with: .systemDefined,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: 0,
+            context: nil,
+            subtype: 8,
+            data1: data1,
+            data2: -1
+        ) else { continue }
+        event.cgEvent?.post(tap: .cghidEventTap)
+    }
+}
 
 func hexBytes(from pointer: UnsafeRawPointer, count: Int) -> String {
     let bytes = UnsafeRawBufferPointer(start: pointer, count: count)
@@ -115,16 +160,33 @@ func contactFrameCallback(
     _: Double,
     _: Int32
 ) -> Int32 {
-    print("Frame")
-    print("Finger count: \(fingerCount)")
-
-    guard fingerCount > 0, let contacts else {
-        print("")
+    let rawCount = max(0, Int(fingerCount))
+    guard rawCount > 0, let contacts else {
+        if gestureRuntime.process(activeTouchCount: 0, rawTouchCount: 0) {
+            print("Three-finger click detected")
+            emitPlayPause()
+        }
         return 0
     }
 
     let contactsPointer = contacts.assumingMemoryBound(to: MTTouch.self)
-    for index in 0..<Int(fingerCount) {
+    var activeTouchCount = 0
+    for index in 0..<rawCount {
+        let contact = contactsPointer[index]
+        if MTTouchState(rawValue: contact.state) == .makeTouch || MTTouchState(rawValue: contact.state) == .touching {
+            activeTouchCount += 1
+        }
+    }
+
+    if gestureRuntime.process(activeTouchCount: activeTouchCount, rawTouchCount: rawCount) {
+        print("Three-finger click detected")
+        emitPlayPause()
+    }
+
+    guard frameDiagnosticsEnabled else { return 0 }
+    print("Frame")
+    print("Finger count: \(fingerCount), active: \(activeTouchCount)")
+    for index in 0..<rawCount {
         let contact = contactsPointer[index]
         print("\nFinger \(index)")
         print("identifier: \(contact.identifier)")
@@ -206,7 +268,7 @@ for index in 0..<count {
     }
 }
 
-if arguments.contains("--frames") {
+if arguments.contains("--frames") || arguments.contains("--listen") {
     guard count > 0 else { exit(EXIT_SUCCESS) }
 
     for index in 0..<count {
@@ -215,6 +277,6 @@ if arguments.contains("--frames") {
         multitouch.registerContactFrameCallback(device, contactFrameCallback)
         multitouch.start(device, 0)
     }
-    print("Listening for touch frames. Press Control-C to stop.")
+    print(frameDiagnosticsEnabled ? "Listening for touch frames. Press Control-C to stop." : "Listening for three-finger clicks. Press Control-C to stop.")
     RunLoop.main.run()
 }
