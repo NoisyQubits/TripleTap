@@ -101,6 +101,7 @@ struct MTTouch {
 
 let frameDiagnosticsEnabled = CommandLine.arguments.contains("--frames")
 let rawDiagnosticsEnabled = CommandLine.arguments.contains("--raw")
+let gestureDiagnosticsEnabled = CommandLine.arguments.contains("--debug-gesture")
 
 enum MTTouchState: Int32 {
     case makeTouch = 3
@@ -110,15 +111,19 @@ enum MTTouchState: Int32 {
 final class GestureRuntime: @unchecked Sendable {
     private let lock = NSLock()
     private var detector = ThreeFingerClickDetector()
+    private var previousActiveTouchCount: Int?
 
-    func process(activeTouchCount: Int, rawTouchCount: Int) -> Bool {
+    func process(activeTouchCount: Int, rawTouchCount: Int) -> (outcome: GestureOutcome?, activeCountChanged: Bool) {
         lock.lock()
         defer { lock.unlock() }
-        return detector.process(
+        let activeCountChanged = previousActiveTouchCount != activeTouchCount
+        previousActiveTouchCount = activeTouchCount
+        let outcome = detector.process(
             activeTouchCount: activeTouchCount,
             rawTouchCount: rawTouchCount,
             now: ContinuousClock().now
         )
+        return (outcome, activeCountChanged)
     }
 }
 
@@ -145,6 +150,21 @@ func emitPlayPause() {
     }
 }
 
+func printGestureOutcome(_ outcome: GestureOutcome) {
+    switch outcome {
+    case .enteredThreeFingerDown:
+        print("gesture: entered ThreeFingerDown")
+    case let .accepted(duration):
+        print("gesture: accepted click (duration=\(duration))")
+    case let .rejected(reason, duration):
+        if let duration {
+            print("gesture: rejected: \(reason) (duration=\(duration))")
+        } else {
+            print("gesture: rejected: \(reason)")
+        }
+    }
+}
+
 func hexBytes(from pointer: UnsafeRawPointer, count: Int) -> String {
     let bytes = UnsafeRawBufferPointer(start: pointer, count: count)
     return bytes.enumerated().map { index, byte in
@@ -162,7 +182,10 @@ func contactFrameCallback(
 ) -> Int32 {
     let rawCount = max(0, Int(fingerCount))
     guard rawCount > 0, let contacts else {
-        if gestureRuntime.process(activeTouchCount: 0, rawTouchCount: 0) {
+        let update = gestureRuntime.process(activeTouchCount: 0, rawTouchCount: 0)
+        if gestureDiagnosticsEnabled, update.activeCountChanged { print("gesture: activeFingers=0") }
+        if let outcome = update.outcome, gestureDiagnosticsEnabled { printGestureOutcome(outcome) }
+        if update.outcome?.isAccepted == true {
             print("Three-finger click detected")
             emitPlayPause()
         }
@@ -178,7 +201,10 @@ func contactFrameCallback(
         }
     }
 
-    if gestureRuntime.process(activeTouchCount: activeTouchCount, rawTouchCount: rawCount) {
+    let update = gestureRuntime.process(activeTouchCount: activeTouchCount, rawTouchCount: rawCount)
+    if gestureDiagnosticsEnabled, update.activeCountChanged { print("gesture: activeFingers=\(activeTouchCount)") }
+    if let outcome = update.outcome, gestureDiagnosticsEnabled { printGestureOutcome(outcome) }
+    if update.outcome?.isAccepted == true {
         print("Three-finger click detected")
         emitPlayPause()
     }
@@ -277,6 +303,12 @@ if arguments.contains("--frames") || arguments.contains("--listen") {
         multitouch.registerContactFrameCallback(device, contactFrameCallback)
         multitouch.start(device, 0)
     }
-    print(frameDiagnosticsEnabled ? "Listening for touch frames. Press Control-C to stop." : "Listening for three-finger clicks. Press Control-C to stop.")
+    if frameDiagnosticsEnabled {
+        print("Listening for touch frames. Press Control-C to stop.")
+    } else if gestureDiagnosticsEnabled {
+        print("Listening for three-finger clicks with diagnostics. Press Control-C to stop.")
+    } else {
+        print("Listening for three-finger clicks. Press Control-C to stop.")
+    }
     RunLoop.main.run()
 }

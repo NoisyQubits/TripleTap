@@ -15,6 +15,7 @@ swift run tripletap --frames
 swift run tripletap --frames --raw
 swift run tripletap --layout
 swift run tripletap --listen
+swift run tripletap --listen --debug-gesture
 ```
 
 `--symbols` asks the system `nm` tool to show exported text symbols when the
@@ -33,6 +34,8 @@ Add `--raw` to print the 96-byte raw record beside its decoded fields. `--layout
 prints the decoder's Swift size, stride, and alignment without starting capture.
 `--listen` enables the three-finger-click recognizer without printing every
 frame; a recognized click posts the system Play/Pause media key.
+Add `--debug-gesture` to trace active-count changes and the recognizer's exact
+accept/reject reason without dumping the contact structure.
 
 ## MTTouch layout
 
