@@ -114,7 +114,11 @@ final class GestureRuntime: @unchecked Sendable {
     private var detector = ThreeFingerClickDetector()
     private var previousActiveTouchCount: Int?
 
-    func process(activeTouchCount: Int, rawTouchCount: Int) -> (outcome: GestureOutcome?, activeCountChanged: Bool) {
+    func process(
+        activeTouchCount: Int,
+        rawTouchCount: Int,
+        touches: [TouchSample]
+    ) -> (outcome: GestureOutcome?, activeCountChanged: Bool) {
         lock.lock()
         defer { lock.unlock() }
         let activeCountChanged = previousActiveTouchCount != activeTouchCount
@@ -122,6 +126,7 @@ final class GestureRuntime: @unchecked Sendable {
         let outcome = detector.process(
             activeTouchCount: activeTouchCount,
             rawTouchCount: rawTouchCount,
+            touches: touches,
             now: ContinuousClock().now
         )
         return (outcome, activeCountChanged)
@@ -179,7 +184,7 @@ func printGestureMeasurement(_ outcome: GestureOutcome) {
     case let .accepted(duration):
         print("measurement: \(milliseconds(duration)) ms — completed")
     case let .rejected(.heldTooLong, duration?):
-        print("measurement: \(milliseconds(duration)) ms — exceeded current 180 ms limit")
+        print("measurement: \(milliseconds(duration)) ms — exceeded current 260 ms limit")
     default:
         break
     }
@@ -202,7 +207,7 @@ func contactFrameCallback(
 ) -> Int32 {
     let rawCount = max(0, Int(fingerCount))
     guard rawCount > 0, let contacts else {
-        let update = gestureRuntime.process(activeTouchCount: 0, rawTouchCount: 0)
+        let update = gestureRuntime.process(activeTouchCount: 0, rawTouchCount: 0, touches: [])
         if gestureDiagnosticsEnabled, update.activeCountChanged { print("gesture: activeFingers=0") }
         if let outcome = update.outcome, gestureDiagnosticsEnabled { printGestureOutcome(outcome) }
         if let outcome = update.outcome, gestureMeasurementEnabled { printGestureMeasurement(outcome) }
@@ -215,14 +220,24 @@ func contactFrameCallback(
 
     let contactsPointer = contacts.assumingMemoryBound(to: MTTouch.self)
     var activeTouchCount = 0
+    var touchSamples: [TouchSample] = []
+    touchSamples.reserveCapacity(rawCount)
     for index in 0..<rawCount {
         let contact = contactsPointer[index]
+        touchSamples.append(TouchSample(
+            identifier: contact.identifier,
+            position: TouchPoint(x: contact.normalized.position.x, y: contact.normalized.position.y)
+        ))
         if MTTouchState(rawValue: contact.state) == .makeTouch || MTTouchState(rawValue: contact.state) == .touching {
             activeTouchCount += 1
         }
     }
 
-    let update = gestureRuntime.process(activeTouchCount: activeTouchCount, rawTouchCount: rawCount)
+    let update = gestureRuntime.process(
+        activeTouchCount: activeTouchCount,
+        rawTouchCount: rawCount,
+        touches: touchSamples
+    )
     if gestureDiagnosticsEnabled, update.activeCountChanged { print("gesture: activeFingers=\(activeTouchCount)") }
     if let outcome = update.outcome, gestureDiagnosticsEnabled { printGestureOutcome(outcome) }
     if let outcome = update.outcome, gestureMeasurementEnabled { printGestureMeasurement(outcome) }

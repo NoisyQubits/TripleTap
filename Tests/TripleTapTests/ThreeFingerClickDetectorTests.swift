@@ -35,17 +35,35 @@ func wasAccepted(_ outcome: GestureOutcome?) -> Bool {
     #expect(wasAccepted(recognized))
 }
 
+@Test func rejectsThreeFingerSwipe() {
+    let clock = ContinuousClock()
+    let start = clock.now
+    var detector = ThreeFingerClickDetector()
+    let origins = [
+        TouchSample(identifier: 1, position: TouchPoint(x: 0.2, y: 0.2)),
+        TouchSample(identifier: 2, position: TouchPoint(x: 0.4, y: 0.2)),
+        TouchSample(identifier: 3, position: TouchPoint(x: 0.6, y: 0.2))
+    ]
+
+    _ = detector.process(activeTouchCount: 3, rawTouchCount: 3, touches: origins, now: start)
+    var moved = origins
+    moved[0] = TouchSample(identifier: 1, position: TouchPoint(x: 0.24, y: 0.2))
+    let result = detector.process(activeTouchCount: 3, rawTouchCount: 3, touches: moved, now: start.advanced(by: .milliseconds(50)))
+
+    #expect(result == .rejected(.movedTooFar, .milliseconds(50)))
+}
+
 @Test func rejectsLongPressAndTooManyFingers() {
     let clock = ContinuousClock()
     let start = clock.now
     var detector = ThreeFingerClickDetector()
 
     _ = detector.process(activeTouchCount: 3, rawTouchCount: 3, now: start)
-    let longPress = detector.process(activeTouchCount: 0, rawTouchCount: 0, now: start.advanced(by: .milliseconds(181)))
+    let longPress = detector.process(activeTouchCount: 0, rawTouchCount: 0, now: start.advanced(by: .milliseconds(261)))
     let overflow = detector.process(activeTouchCount: 4, rawTouchCount: 4, now: start.advanced(by: .milliseconds(300)))
     let reduced = detector.process(activeTouchCount: 3, rawTouchCount: 3, now: start.advanced(by: .milliseconds(310)))
     let released = detector.process(activeTouchCount: 0, rawTouchCount: 0, now: start.advanced(by: .milliseconds(350)))
-    #expect(longPress == .rejected(.heldTooLong, .milliseconds(181)))
+    #expect(longPress == .rejected(.heldTooLong, .milliseconds(261)))
     #expect(overflow == .rejected(.tooManyFingers, nil))
     #expect(reduced == nil)
     #expect(released == nil)

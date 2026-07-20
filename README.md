@@ -38,8 +38,9 @@ frame; a recognized click posts the system Play/Pause media key.
 Add `--debug-gesture` to trace active-count changes and the recognizer's exact
 accept/reject reason without dumping the contact structure.
 `--measure-gesture` records completed three-finger press durations without
-posting a media event; use it to collect a representative set before choosing a
-custom press-duration threshold.
+posting a media event. The default press limit is 260 ms, based on the measured
+hard-press samples; the recognizer also rejects movement over 2.5% of the
+trackpad's normalized dimensions.
 
 ## MTTouch layout
 
