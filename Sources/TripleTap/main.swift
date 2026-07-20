@@ -66,6 +66,53 @@ struct MultitouchAPI {
     }
 }
 
+/// Reverse-engineered `MTContact` layout used by MultitouchSupport on arm64.
+/// Keep this private-framework type isolated so its layout can be updated
+/// independently if a later macOS release changes it.
+struct MTContact {
+    let frame: Int32
+    let timestamp: Double
+    let identifier: Int32
+    let state: Int32
+    let fingerID: Int32
+    let x: Float
+    let y: Float
+    let z: Float
+    let majorAxis: Float
+    let minorAxis: Float
+    let angle: Float
+    let size: Float
+    let xVelocity: Float
+    let yVelocity: Float
+}
+
+func contactFrameCallback(
+    _: MultitouchAPI.Device,
+    _ contacts: UnsafeRawPointer?,
+    _ fingerCount: Int32,
+    _: Double,
+    _: Int32
+) -> Int32 {
+    print("Frame")
+    print("Finger count: \(fingerCount)")
+
+    guard fingerCount > 0, let contacts else {
+        print("")
+        return 0
+    }
+
+    let contactsPointer = contacts.assumingMemoryBound(to: MTContact.self)
+    for index in 0..<Int(fingerCount) {
+        let contact = contactsPointer[index]
+        print("\nFinger \(index)")
+        print("x: \(contact.x)")
+        print("y: \(contact.y)")
+        print("state: \(contact.state)")
+    }
+    print("")
+    return 0
+}
+
 @discardableResult
 func printExportedSymbols(at frameworkPath: String) -> Int32 {
     let process = Process()
@@ -119,4 +166,17 @@ for index in 0..<count {
     } else {
         print("Trackpad \(index): device handle \(device)")
     }
+}
+
+if arguments.contains("--frames") {
+    guard count > 0 else { exit(EXIT_SUCCESS) }
+
+    for index in 0..<count {
+        guard let rawDevice = CFArrayGetValueAtIndex(devices, index) else { continue }
+        let device = UnsafeMutableRawPointer(mutating: rawDevice)
+        multitouch.registerContactFrameCallback(device, contactFrameCallback)
+        multitouch.start(device, 0)
+    }
+    print("Listening for touch frames. Press Control-C to stop.")
+    RunLoop.main.run()
 }
