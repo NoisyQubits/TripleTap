@@ -23,6 +23,49 @@ enum MultitouchSupport {
     }
 }
 
+/// The private framework has no public Swift module. These ABI declarations
+/// match the symbols currently exported by Tahoe and are intentionally kept
+/// behind runtime lookup.
+struct MultitouchAPI {
+    typealias Device = UnsafeMutableRawPointer
+    typealias DeviceCreateList = @convention(c) () -> CFArray?
+    typealias DeviceStart = @convention(c) (Device, Int32) -> Void
+    typealias DeviceStop = @convention(c) (Device) -> Void
+    typealias ContactFrameCallback = @convention(c) (Device, UnsafeRawPointer?, Int32, Double, Int32) -> Int32
+    typealias RegisterContactFrameCallback = @convention(c) (Device, ContactFrameCallback) -> Void
+    typealias UnregisterContactFrameCallback = @convention(c) (Device, ContactFrameCallback) -> Void
+    typealias DeviceGetDeviceID = @convention(c) (Device, UnsafeMutablePointer<Int32>) -> Void
+
+    let createDeviceList: DeviceCreateList
+    let start: DeviceStart
+    let stop: DeviceStop
+    let registerContactFrameCallback: RegisterContactFrameCallback
+    let unregisterContactFrameCallback: UnregisterContactFrameCallback
+    let deviceID: DeviceGetDeviceID?
+
+    init?(handle: UnsafeMutableRawPointer) {
+        func bind<T>(_ name: String, as _: T.Type) -> T? {
+            guard let symbol = MultitouchSupport.resolve(name, in: handle) else { return nil }
+            return unsafeBitCast(symbol, to: T.self)
+        }
+
+        guard
+            let createDeviceList = bind("MTDeviceCreateList", as: DeviceCreateList.self),
+            let start = bind("MTDeviceStart", as: DeviceStart.self),
+            let stop = bind("MTDeviceStop", as: DeviceStop.self),
+            let register = bind("MTRegisterContactFrameCallback", as: RegisterContactFrameCallback.self),
+            let unregister = bind("MTUnregisterContactFrameCallback", as: UnregisterContactFrameCallback.self)
+        else { return nil }
+
+        self.createDeviceList = createDeviceList
+        self.start = start
+        self.stop = stop
+        self.registerContactFrameCallback = register
+        self.unregisterContactFrameCallback = unregister
+        self.deviceID = bind("MTDeviceGetDeviceID", as: DeviceGetDeviceID.self)
+    }
+}
+
 @discardableResult
 func printExportedSymbols(at frameworkPath: String) -> Int32 {
     let process = Process()
@@ -48,20 +91,32 @@ defer { dlclose(framework) }
 print("Loaded MultitouchSupport.framework")
 print("Path: \(MultitouchSupport.frameworkPath)")
 
-let expectedSymbols = [
-    "MTDeviceCreateList",
-    "MTDeviceStart",
-    "MTDeviceStop",
-    "MTRegisterContactFrameCallback",
-    "MTUnregisterContactFrameCallback"
-]
-
-for symbol in expectedSymbols {
-    let status = MultitouchSupport.resolve(symbol, in: framework) == nil ? "missing" : "available"
-    print("\(symbol): \(status)")
+guard let multitouch = MultitouchAPI(handle: framework) else {
+    FileHandle.standardError.write(Data("Required MultitouchSupport symbols are unavailable.\n".utf8))
+    exit(EXIT_FAILURE)
 }
+print("Required MultitouchSupport symbols: available")
 
 if arguments.contains("--symbols") {
     print("\nExported global symbols:")
     exit(printExportedSymbols(at: MultitouchSupport.frameworkPath))
+}
+
+guard let devices = multitouch.createDeviceList() else {
+    FileHandle.standardError.write(Data("MTDeviceCreateList returned no device list.\n".utf8))
+    exit(EXIT_FAILURE)
+}
+
+let count = CFArrayGetCount(devices)
+print("Found \(count) trackpad\(count == 1 ? "" : "s")")
+for index in 0..<count {
+    guard let rawDevice = CFArrayGetValueAtIndex(devices, index) else { continue }
+    let device = UnsafeMutableRawPointer(mutating: rawDevice)
+    if let deviceID = multitouch.deviceID {
+        var id: Int32 = 0
+        deviceID(device, &id)
+        print("Trackpad \(index): device ID \(id)")
+    } else {
+        print("Trackpad \(index): device handle \(device)")
+    }
 }
