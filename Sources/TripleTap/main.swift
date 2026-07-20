@@ -104,6 +104,22 @@ let rawDiagnosticsEnabled = CommandLine.arguments.contains("--raw")
 let gestureDiagnosticsEnabled = CommandLine.arguments.contains("--debug-gesture")
 let gestureMeasurementEnabled = CommandLine.arguments.contains("--measure-gesture")
 
+func optionValue(_ option: String) -> String? {
+    let arguments = Array(CommandLine.arguments.dropFirst())
+    guard let optionIndex = arguments.firstIndex(of: option), arguments.indices.contains(optionIndex + 1) else {
+        return nil
+    }
+    return arguments[optionIndex + 1]
+}
+
+let maximumDurationMilliseconds = optionValue("--max-duration-ms").flatMap(Int.init).flatMap { $0 > 0 ? $0 : nil } ?? 260
+let maximumMovement = optionValue("--max-movement").flatMap(Float.init).flatMap { $0 > 0 ? $0 : nil } ?? 0.025
+let gestureConfiguration = ThreeFingerClickDetector.Configuration(
+    maximumPressDuration: .milliseconds(maximumDurationMilliseconds),
+    cooldown: .milliseconds(250),
+    maximumMovement: maximumMovement
+)
+
 enum MTTouchState: Int32 {
     case makeTouch = 3
     case touching = 4
@@ -111,8 +127,12 @@ enum MTTouchState: Int32 {
 
 final class GestureRuntime: @unchecked Sendable {
     private let lock = NSLock()
-    private var detector = ThreeFingerClickDetector()
+    private var detector: ThreeFingerClickDetector
     private var previousActiveTouchCount: Int?
+
+    init(configuration: ThreeFingerClickDetector.Configuration) {
+        detector = ThreeFingerClickDetector(configuration: configuration)
+    }
 
     func process(
         activeTouchCount: Int,
@@ -133,7 +153,7 @@ final class GestureRuntime: @unchecked Sendable {
     }
 }
 
-let gestureRuntime = GestureRuntime()
+let gestureRuntime = GestureRuntime(configuration: gestureConfiguration)
 
 func emitPlayPause() {
     // IOKit's ev_keymap.h defines NX_KEYTYPE_PLAY as 16. The system-defined
@@ -184,7 +204,7 @@ func printGestureMeasurement(_ outcome: GestureOutcome) {
     case let .accepted(duration):
         print("measurement: \(milliseconds(duration)) ms — completed")
     case let .rejected(.heldTooLong, duration?):
-        print("measurement: \(milliseconds(duration)) ms — exceeded current 260 ms limit")
+        print("measurement: \(milliseconds(duration)) ms — exceeded current \(maximumDurationMilliseconds) ms limit")
     default:
         break
     }
@@ -349,5 +369,6 @@ if arguments.contains("--frames") || arguments.contains("--listen") || gestureMe
     } else {
         print("Listening for three-finger clicks. Press Control-C to stop.")
     }
+    print("Gesture limits: \(maximumDurationMilliseconds) ms, normalized movement \(maximumMovement)")
     RunLoop.main.run()
 }

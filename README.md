@@ -17,6 +17,7 @@ swift run tripletap --layout
 swift run tripletap --listen
 swift run tripletap --listen --debug-gesture
 swift run tripletap --measure-gesture
+swift run tripletap --listen --max-duration-ms 300 --max-movement 0.05
 ```
 
 `--symbols` asks the system `nm` tool to show exported text symbols when the
@@ -41,6 +42,12 @@ accept/reject reason without dumping the contact structure.
 posting a media event. The default press limit is 260 ms, based on the measured
 hard-press samples; the recognizer also rejects movement over 2.5% of the
 trackpad's normalized dimensions.
+
+Both limits are configurable for calibration: `--max-duration-ms <milliseconds>`
+and `--max-movement <normalized-distance>`. A production three-finger utility,
+MiddleClick, exposes equivalent normalized distance and time settings; its
+documented defaults are 0.05 and 300 ms respectively. TripleTap starts more
+conservatively to avoid system gesture collisions.
 
 ## MTTouch layout
 
