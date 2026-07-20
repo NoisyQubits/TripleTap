@@ -102,6 +102,7 @@ struct MTTouch {
 let frameDiagnosticsEnabled = CommandLine.arguments.contains("--frames")
 let rawDiagnosticsEnabled = CommandLine.arguments.contains("--raw")
 let gestureDiagnosticsEnabled = CommandLine.arguments.contains("--debug-gesture")
+let gestureMeasurementEnabled = CommandLine.arguments.contains("--measure-gesture")
 
 enum MTTouchState: Int32 {
     case makeTouch = 3
@@ -167,6 +168,23 @@ func printGestureOutcome(_ outcome: GestureOutcome) {
     }
 }
 
+func milliseconds(_ duration: Duration) -> String {
+    let components = duration.components
+    let value = Double(components.seconds) * 1_000 + Double(components.attoseconds) / 1_000_000_000_000_000
+    return String(format: "%.1f", value)
+}
+
+func printGestureMeasurement(_ outcome: GestureOutcome) {
+    switch outcome {
+    case let .accepted(duration):
+        print("measurement: \(milliseconds(duration)) ms — completed")
+    case let .rejected(.heldTooLong, duration?):
+        print("measurement: \(milliseconds(duration)) ms — exceeded current 180 ms limit")
+    default:
+        break
+    }
+}
+
 func hexBytes(from pointer: UnsafeRawPointer, count: Int) -> String {
     let bytes = UnsafeRawBufferPointer(start: pointer, count: count)
     return bytes.enumerated().map { index, byte in
@@ -187,9 +205,10 @@ func contactFrameCallback(
         let update = gestureRuntime.process(activeTouchCount: 0, rawTouchCount: 0)
         if gestureDiagnosticsEnabled, update.activeCountChanged { print("gesture: activeFingers=0") }
         if let outcome = update.outcome, gestureDiagnosticsEnabled { printGestureOutcome(outcome) }
+        if let outcome = update.outcome, gestureMeasurementEnabled { printGestureMeasurement(outcome) }
         if update.outcome?.isAccepted == true {
             print("Three-finger click detected")
-            emitPlayPause()
+            if !gestureMeasurementEnabled { emitPlayPause() }
         }
         return 0
     }
@@ -206,9 +225,10 @@ func contactFrameCallback(
     let update = gestureRuntime.process(activeTouchCount: activeTouchCount, rawTouchCount: rawCount)
     if gestureDiagnosticsEnabled, update.activeCountChanged { print("gesture: activeFingers=\(activeTouchCount)") }
     if let outcome = update.outcome, gestureDiagnosticsEnabled { printGestureOutcome(outcome) }
+    if let outcome = update.outcome, gestureMeasurementEnabled { printGestureMeasurement(outcome) }
     if update.outcome?.isAccepted == true {
         print("Three-finger click detected")
-        emitPlayPause()
+        if !gestureMeasurementEnabled { emitPlayPause() }
     }
 
     guard frameDiagnosticsEnabled else { return 0 }
@@ -296,7 +316,7 @@ for index in 0..<count {
     }
 }
 
-if arguments.contains("--frames") || arguments.contains("--listen") {
+if arguments.contains("--frames") || arguments.contains("--listen") || gestureMeasurementEnabled {
     guard count > 0 else { exit(EXIT_SUCCESS) }
 
     for index in 0..<count {
@@ -309,6 +329,8 @@ if arguments.contains("--frames") || arguments.contains("--listen") {
         print("Listening for touch frames. Press Control-C to stop.")
     } else if gestureDiagnosticsEnabled {
         print("Listening for three-finger clicks with diagnostics. Press Control-C to stop.")
+    } else if gestureMeasurementEnabled {
+        print("Measuring three-finger press durations; no media events will be posted. Press Control-C to stop.")
     } else {
         print("Listening for three-finger clicks. Press Control-C to stop.")
     }

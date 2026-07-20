@@ -16,6 +16,7 @@ swift run tripletap --frames --raw
 swift run tripletap --layout
 swift run tripletap --listen
 swift run tripletap --listen --debug-gesture
+swift run tripletap --measure-gesture
 ```
 
 `--symbols` asks the system `nm` tool to show exported text symbols when the
@@ -36,6 +37,9 @@ prints the decoder's Swift size, stride, and alignment without starting capture.
 frame; a recognized click posts the system Play/Pause media key.
 Add `--debug-gesture` to trace active-count changes and the recognizer's exact
 accept/reject reason without dumping the contact structure.
+`--measure-gesture` records completed three-finger press durations without
+posting a media event; use it to collect a representative set before choosing a
+custom press-duration threshold.
 
 ## MTTouch layout
 
