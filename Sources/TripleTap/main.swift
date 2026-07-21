@@ -35,7 +35,7 @@ struct MultitouchAPI {
     typealias ContactFrameCallback = @convention(c) (Device, UnsafeRawPointer?, Int32, Double, Int32) -> Int32
     typealias RegisterContactFrameCallback = @convention(c) (Device, ContactFrameCallback) -> Void
     typealias UnregisterContactFrameCallback = @convention(c) (Device, ContactFrameCallback) -> Void
-    typealias DeviceGetDeviceID = @convention(c) (Device, UnsafeMutablePointer<Int32>) -> Void
+    typealias DeviceGetDeviceID = @convention(c) (Device, UnsafeMutablePointer<UInt64>) -> Void
 
     let createDeviceList: DeviceCreateList
     let start: DeviceStart
@@ -113,7 +113,9 @@ func optionValue(_ option: String) -> String? {
 }
 
 let maximumDurationMilliseconds = optionValue("--max-duration-ms").flatMap(Int.init).flatMap { $0 > 0 ? $0 : nil } ?? 260
-let maximumMovement = optionValue("--max-movement").flatMap(Float.init).flatMap { $0 > 0 ? $0 : nil } ?? 0.025
+let maximumMovement = optionValue("--max-movement").flatMap(Float.init).flatMap {
+    $0.isFinite && $0 > 0 && $0 <= 1 ? $0 : nil
+} ?? 0.025
 let gestureConfiguration = ThreeFingerClickDetector.Configuration(
     maximumPressDuration: .milliseconds(maximumDurationMilliseconds),
     cooldown: .milliseconds(250),
@@ -343,7 +345,7 @@ for index in 0..<count {
     guard let rawDevice = CFArrayGetValueAtIndex(devices, index) else { continue }
     let device = UnsafeMutableRawPointer(mutating: rawDevice)
     if let deviceID = multitouch.deviceID {
-        var id: Int32 = 0
+        var id: UInt64 = 0
         deviceID(device, &id)
         print("Trackpad \(index): device ID \(id)")
     } else {
@@ -351,7 +353,9 @@ for index in 0..<count {
     }
 }
 
-if arguments.contains("--frames") || arguments.contains("--listen") || gestureMeasurementEnabled {
+// Running with no arguments is the service entrypoint: behave like `--listen`
+// so `tripletap` alone can be supervised by launchd / `brew services`.
+if arguments.isEmpty || arguments.contains("--frames") || arguments.contains("--listen") || gestureMeasurementEnabled {
     guard count > 0 else { exit(EXIT_SUCCESS) }
 
     for index in 0..<count {

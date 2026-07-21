@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent for TripleTap.
+
+  Manual install (no Homebrew):
+    swift build -c release
+    sudo cp .build/release/tripletap /usr/local/bin/tripletap   # or adjust ProgramArguments below
+    cp dist/com.noisyqubits.tripletap.plist ~/Library/LaunchAgents/
+    launchctl load  ~/Library/LaunchAgents/com.noisyqubits.tripletap.plist   # start now + at login
+    launchctl unload ~/Library/LaunchAgents/com.noisyqubits.tripletap.plist   # stop + disable
+
+  This is a LaunchAgent (per-user), not a LaunchDaemon: it runs inside your
+  logged-in GUI session, which is required for posting media keys and for the
+  Accessibility permission prompt to be attributable to you.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.noisyqubits.tripletap</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/tripletap</string>
+        <string>--listen</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Don't hot-loop if it exits immediately (e.g. no trackpad / framework gone). -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/tripletap.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/tripletap.log</string>
+</dict>
+</plist>
