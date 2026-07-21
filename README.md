@@ -1,5 +1,10 @@
 # TripleTap
 
+[![License: MIT](https://img.shields.io/github/license/NoisyQubits/TripleTap)](LICENSE)
+[![CI](https://github.com/NoisyQubits/TripleTap/actions/workflows/ci.yml/badge.svg)](https://github.com/NoisyQubits/TripleTap/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/NoisyQubits/TripleTap?sort=semver)](https://github.com/NoisyQubits/TripleTap/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-lightgrey)](https://github.com/NoisyQubits/TripleTap)
+
 TripleTap is a native Swift command-line utility for macOS that sends the
 Play/Pause media key when you perform a stationary three-finger click on the
 built-in trackpad.
