@@ -30,28 +30,12 @@ below uses.
 
 ## Install with Homebrew
 
-TripleTap is not in `homebrew-core` (it links Apple's private
-`MultitouchSupport.framework`), so it ships from the NoisyQubits org tap at
-[`noisyqubits/homebrew-noisyqubits`](https://github.com/NoisyQubits/homebrew-noisyqubits):
+Install from the [NoisyQubits tap](https://github.com/NoisyQubits/homebrew-noisyqubits):
 
 ```sh
 brew tap noisyqubits/noisyqubits
-brew trust noisyqubits/noisyqubits   # third-party taps must be trusted before install
+brew trust noisyqubits/noisyqubits   # required once for third-party taps
 brew install --HEAD tripletap
-```
-
-The `brew trust` step is required once: recent Homebrew refuses to load a
-formula from an untrusted third-party tap. If you skip it you will see
-`Refusing to load formula … from untrusted tap`.
-
-The formula is head-only until you cut a release. To enable plain
-`brew install tripletap`, tag a release and uncomment the stable block in the
-formula:
-
-```sh
-git tag v0.1.0 && git push --tags
-curl -sL https://github.com/NoisyQubits/TripleTap/archive/refs/tags/v0.1.0.tar.gz | shasum -a 256
-# paste the checksum into Formula/tripletap.rb
 ```
 
 ## Run in the background
