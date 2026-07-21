@@ -22,17 +22,6 @@ Quartz Event Services.
 This is a personal proof of concept. `MultitouchSupport.framework` is private
 and may change in a future macOS release; the project is not App Store suitable.
 
-## Run
-
-```sh
-swift run tripletap --listen
-```
-
-The process prints `Three-finger click detected` and sends Play/Pause whenever
-it accepts a gesture. Stop it with Control-C. Running the binary with no
-arguments behaves the same as `--listen`, which is what the background service
-below uses.
-
 ## Install with Homebrew
 
 Install from the [NoisyQubits tap](https://github.com/NoisyQubits/homebrew-noisyqubits):
@@ -69,6 +58,17 @@ launchctl unload ~/Library/LaunchAgents/com.noisyqubits.tripletap.plist  # stop 
 
 Logs go to `/tmp/tripletap.log`. If Play/Pause does not fire, grant the binary
 Accessibility permission under System Settings → Privacy & Security.
+
+## Run from source
+
+```sh
+swift run tripletap --listen
+```
+
+The process prints `Three-finger click detected` and sends Play/Pause whenever
+it accepts a gesture. Stop it with Control-C. Running the binary with no
+arguments behaves the same as `--listen`, which is what the background service
+uses.
 
 ## Gesture rules
 
