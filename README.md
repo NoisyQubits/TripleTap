@@ -35,7 +35,7 @@ Install from the [NoisyQubits tap](https://github.com/NoisyQubits/homebrew-noisy
 ```sh
 brew tap noisyqubits/noisyqubits
 brew trust noisyqubits/noisyqubits   # required once for third-party taps
-brew install --HEAD tripletap
+brew install tripletap               # add --HEAD to build the latest main
 ```
 
 ## Run in the background
